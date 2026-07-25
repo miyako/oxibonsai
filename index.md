@@ -47,7 +47,7 @@ If (True)
     
     var $options : Object
     
-    $max_seq_len:=1024
+    $max_seq_len:=8192
     $pool_size:=4
     $max_concurrent_requests:=4
     $request_timeout_ms:=60000
