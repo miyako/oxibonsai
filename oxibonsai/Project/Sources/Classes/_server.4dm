@@ -75,6 +75,4 @@ Function start($option : Object) : 4D:C1709.SystemWorker
 	$command+=This:C1470.escape(This:C1470.expand($OXI_TOKENIZER).path)
 	$command+=" "
 	
-	ALERT:C41($command)
-	
 	return This:C1470.controller.execute($command).worker
