@@ -1,0 +1,21 @@
+{
+	"methods": {
+		"onModel": {
+			"timeStamp": "2026-01-17T15:15:35Z"
+		},
+		"main": {
+			"timeStamp": "2026-01-17T15:15:20Z",
+			"attributes": {
+				"invisible": true,
+				"preemptive": "capable"
+			}
+		},
+		"start": {
+			"timeStamp": "2026-07-24T00:44:16Z",
+			"attributes": {
+				"invisible": true,
+				"preemptive": "capable"
+			}
+		}
+	}
+}
