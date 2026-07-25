@@ -26,8 +26,23 @@ $port:=8080
 If (True:C214)
 	
 	$folder:=$homeFolder.folder("Bonsai")
-	$path:="Bonsai-8B.gguf"
-	$URL:="prism-ml/Bonsai-8B-gguf"
+	Case of 
+		: (True:C214)
+			//model: Bonsai-8B (Q1_0_g128)
+			//arch : Qwen3-8B
+			//
+			$path:="Bonsai-8B.gguf"
+			$URL:="prism-ml/Bonsai-8B-gguf"
+		: (False:C215)
+			$path:="Ternary-Bonsai-8B-TQ2_0.gguf"
+			$URL:="keisuke-miyako/Ternary-Bonsai-8B-gguf"
+		: (False:C215)
+			$path:="Ternary-Bonsai-4B-TQ2_0.gguf"
+			$URL:="keisuke-miyako/Ternary-Bonsai-4B-gguf"
+		: (False:C215)
+			$path:="Ternary-Bonsai-1.7B-TQ2_0.gguf"
+			$URL:="keisuke-miyako/Ternary-Bonsai-1.7B-gguf"
+	End case 
 	
 	var $options : Object
 	
