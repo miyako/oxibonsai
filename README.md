@@ -1,5 +1,7 @@
 # oxibonsai for 4D
 
+[Overview](https://miyako.github.io/oxibonsai/) | [Integration guide](https://miyako.github.io/oxibonsai/guide.html)
+
 Run the [OxiBonsai](https://github.com/cool-japan/oxibonsai) local HTTP server from **4D 20+**.
 This repository is the MIT-licensed 4D component and its build/packaging integration,
 not the upstream inference engine. The upstream Rust engine is Apache-2.0 licensed.

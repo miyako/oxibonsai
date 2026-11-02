@@ -2,55 +2,49 @@
 <html lang="{{ site.lang | default: "en-US" }}">
   <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#252627">
 
 {% seo %}
     <link rel="stylesheet" href="{{ "/assets/css/style.css?v=" | append: site.github.build_revision | relative_url }}">
-    <!--[if lt IE 9]>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
-    <![endif]-->
     {% include head-custom.html %}
   </head>
   <body>
-    <div class="wrapper">
-      <header>
-        <h1><a href="{{ "/" | absolute_url }}">{{ site.title | default: site.github.repository_name }}</a></h1>
-
-        {% if site.logo %}
-          <img src="{{site.logo | relative_url}}" alt="Logo" />
-        {% endif %}
-
-        <p>{{ site.description | default: site.github.project_tagline }}</p>
-
-        {% if site.github.is_project_page %}
-        <p class="view"><a href="{{ site.github.repository_url }}">View the Project on GitHub <small>{{ site.github.repository_nwo }}</small></a></p>
-        {% endif %}
-
-        {% if site.github.is_user_page %}
-        <p class="view"><a href="{{ site.github.owner_url }}">View My GitHub Profile</a></p>
-        {% endif %}
-
-        {% if site.show_downloads %}
-        <ul class="downloads">
-          <li><a href="{{ site.github.zip_url }}">Download <strong>ZIP File</strong></a></li>
-          <li><a href="{{ site.github.tar_url }}">Download <strong>TAR Ball</strong></a></li>
-          <li><a href="{{ site.github.repository_url }}">View On <strong>GitHub</strong></a></li>
-        </ul>
-        {% endif %}
-      </header>
-      <section>
-
-      {{ content }}
-
-      </section>
-      <footer>
-        {% if site.github.is_project_page %}
-        <p>This project is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a></p>
-        {% endif %}
-        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
-      </footer>
-    </div>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header container">
+      <a class="brand" href="{{ "/" | relative_url }}" aria-label="oxibonsai home">
+        <img src="{{ site.logo | relative_url }}" alt="" width="40" height="40">
+        <span>oxibonsai <span class="brand-detail">/ for 4D</span></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="{{ "/" | relative_url }}"{% if page.landing %} aria-current="page"{% endif %}>Overview</a>
+        <a href="{{ "/guide.html" | relative_url }}"{% unless page.landing %} aria-current="page"{% endunless %}>Guide</a>
+        <a href="{{ site.github.repository_url }}">GitHub <span aria-hidden="true">&nearr;</span></a>
+      </nav>
+    </header>
+    <main id="main" class="container{% unless page.landing %} guide-layout{% endunless %}" tabindex="-1">
+      {% unless page.landing %}
+      <aside class="guide-nav" aria-label="On this page">
+        <p class="eyebrow">Integration guide</p>
+        <nav aria-label="Guide sections">
+          <a href="#installation-and-targets">Installation &amp; targets</a>
+          <a href="#use-from-4d">Use from 4D</a>
+          <a href="#options-and-api">Options &amp; API</a>
+          <a href="#reproducible-source-builds">Source builds</a>
+          <a href="#credits-and-licensing">Credits &amp; licensing</a>
+        </nav>
+        <a class="text-link" href="{{ site.github.repository_url }}/releases">Get the component &rarr;</a>
+      </aside>
+      {% endunless %}
+      <div class="{% if page.landing %}landing{% else %}prose{% endif %}">
+        {{ content }}
+      </div>
+    </main>
+    <footer class="site-footer container">
+      <div><a class="footer-brand" href="{{ "/" | relative_url }}">oxibonsai for 4D</a><p>A local engine. An open-source integration.</p></div>
+      <div><a href="{{ site.github.repository_url }}/blob/main/LICENSE">Integration / MIT</a><a href="https://github.com/cool-japan/oxibonsai">Engine / Apache-2.0</a><a href="{{ "/guide.html#credits-and-licensing" | relative_url }}">Credits</a></div>
+    </footer>
+    <p id="copy-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
     {% include footer-custom.html %}
   </body>
 </html>
