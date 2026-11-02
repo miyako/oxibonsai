@@ -1,0 +1,65 @@
+name: Update committed native resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_git:
+        description: Authorize committing all verified rebuilt native resources to main (no publication)
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: component-resources-main
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.update_git
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require current main snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+
+  build:
+    needs: authorize
+    uses: ./.github/workflows/build-server.yml
+    permissions:
+      contents: read
+
+  update:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.update_git
+    environment: native-update
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-resource-bin
+          path: .build/verified-bin
+      - name: Verify and commit the complete resource set
+        run: python scripts/update-resources.py --artifacts .build/verified-bin --expected-sha "$GITHUB_SHA"
+      - name: Explain publication boundary
+        run: |
+          echo "Native resources were committed to main. No release was dispatched." >> "$GITHUB_STEP_SUMMARY"
+          echo "GITHUB_TOKEN pushes do not trigger Publish. Review the resource commit, then separately dispatch Publish on main." >> "$GITHUB_STEP_SUMMARY"

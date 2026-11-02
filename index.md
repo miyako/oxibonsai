@@ -107,6 +107,6 @@ curl --fail http://127.0.0.1:8080/v1/models
 </section>
 
 <section class="source-section" aria-labelledby="source-title">
-  <div><p class="eyebrow">Open at the roots</p><h2 id="source-title">An engine you can trace.</h2><p>The integration is MIT-licensed; the upstream Rust engine is Apache-2.0. Source builds pin OxiBonsai v0.2.3, its dependencies, build features and Rust 1.99.0. No performance or inference-quality guarantees.</p></div>
+  <div><p class="eyebrow">Open at the roots</p><h2 id="source-title">An engine you can trace.</h2><p>The integration is MIT-licensed; the upstream Rust engine is Apache-2.0. Source builds pin OxiBonsai v0.2.3, its dependencies, build features and Rust 1.99.0. An explicit native refresh commits verified resources to Git; component-only Publish reuses them without rebuilding Rust. Native refresh never dispatches a release. No performance or inference-quality guarantees.</p></div>
   <a class="button button-secondary" href="{{ "/guide.html#reproducible-source-builds" | relative_url }}">Build provenance <span aria-hidden="true">&rarr;</span></a>
 </section>

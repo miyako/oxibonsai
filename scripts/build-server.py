@@ -8,8 +8,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+from importlib.util import module_from_spec, spec_from_file_location
 
 ROOT = Path(__file__).resolve().parents[1]
+SPEC = spec_from_file_location("native_contract", Path(__file__).with_name("native-contract.py"))
+CONTRACT = module_from_spec(SPEC)
+SPEC.loader.exec_module(CONTRACT)
 
 
 def run(*args, cwd=None):
@@ -35,18 +39,23 @@ def smoke(binary, version):
 
 
 def verify_build(manifest, pin, target):
+    if set(pin["targets"]) != CONTRACT.TARGETS:
+        raise RuntimeError("The complete supported target set is required")
     expected = {
         **{key: pin[key] for key in ("repository", "tag", "revision", "committed_at", "version")},
         "target": target,
         "features": pin["targets"][target],
         "cargo_lock_sha256": sha256(ROOT / "Cargo.lock"),
         "license_sha256": sha256(ROOT / "oxibonsai" / "third party" / "LICENSE.txt"),
+        "rustflags": ["-C", "target-feature=+crt-static"] if "windows" in target else [],
     }
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise RuntimeError(f"{target}: provenance mismatch for {key}")
     if not manifest["rustc"].startswith(f"rustc {pin['rust']} "):
         raise RuntimeError(f"{target}: toolchain mismatch")
+    if not manifest.get("runtime_dependencies"):
+        raise RuntimeError(f"{target}: missing runtime closure audit")
 
 
 def build(target, work, source=None):
@@ -69,9 +78,13 @@ def build(target, work, source=None):
     source = source.resolve()
     if run("git", "rev-parse", "HEAD", cwd=source) != pin["revision"]:
         raise RuntimeError("Source HEAD does not match upstream.json; use a fresh work directory")
-    if run("git", "status", "--porcelain", "--untracked-files=normal", cwd=source):
-        raise RuntimeError("Upstream source has local changes")
+    status = run("git", "status", "--porcelain", "--untracked-files=normal", cwd=source)
     lock = ROOT / "Cargo.lock"
+    cached_lock = source / "Cargo.lock"
+    if status == "?? Cargo.lock" and cached_lock.read_bytes() == lock.read_bytes():
+        status = ""
+    if status:
+        raise RuntimeError("Upstream source has local changes")
     shutil.copyfile(lock, source / "Cargo.lock")
     env = os.environ.copy()
     # Do not silently produce a host-tuned binary unsuitable for distribution.
@@ -79,6 +92,9 @@ def build(target, work, source=None):
         if env.get(key):
             raise RuntimeError(f"Unset {key} for a portable distribution build")
     env["CARGO_TARGET_DIR"] = str(work / "target")
+    rustflags = ["-C", "target-feature=+crt-static"] if "windows" in target else []
+    if rustflags:
+        env["CARGO_ENCODED_RUSTFLAGS"] = "\x1f".join(rustflags)
     subprocess.run(
         ["cargo", f"+{pin['rust']}", "build", "--locked", "--release",
          "--manifest-path", str(source / "Cargo.toml"),
@@ -103,7 +119,10 @@ def build(target, work, source=None):
         "cargo_lock_sha256": sha256(lock),
         "license_sha256": sha256(output / "UPSTREAM-LICENSE.txt"),
         "binary_sha256": sha256(output / name),
+        "runtime_dependencies": CONTRACT.audit(output / name, target),
+        "rustflags": rustflags,
     }
+    CONTRACT.sizes(output)
     verify_build(manifest, pin, target)
     (output / "source.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return output

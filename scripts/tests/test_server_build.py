@@ -18,6 +18,14 @@ BUILD = load("build-server")
 PACKAGE = load("package-server")
 
 
+def runtime_fixture(binary, target):
+    if "windows" in target:
+        return ["system"]
+    arches = (["arm64", "x86_64"] if target.startswith("universal") else
+              ["arm64"] if target.startswith("aarch64") else ["x86_64"])
+    return {arch: ["system"] for arch in arches}
+
+
 class ServerBuildTests(unittest.TestCase):
     def test_provenance_inputs_use_canonical_lf_bytes(self):
         for path in (BUILD.ROOT / "Cargo.lock",
@@ -40,6 +48,7 @@ class ServerBuildTests(unittest.TestCase):
             with patch.object(BUILD, "run", side_effect=[
                 pin["revision"], "", f"rustc {pin['rust']} (test)",
             ]), patch.object(BUILD, "smoke"), patch.object(BUILD.subprocess, "run"), \
+                    patch.object(BUILD.CONTRACT, "audit", return_value={"arm64": ["system"]}), \
                     patch.object(BUILD.subprocess, "check_output",
                                  return_value=license_bytes) as git_show:
                 output = BUILD.build(target, root, source)
@@ -93,6 +102,8 @@ class ServerBuildTests(unittest.TestCase):
                 "cargo_lock_sha256": BUILD.sha256(BUILD.ROOT / "Cargo.lock"),
                 "license_sha256": BUILD.sha256(license_file),
                 "binary_sha256": BUILD.sha256(binary),
+                "runtime_dependencies": runtime_fixture(binary, target),
+                "rustflags": ["-C", "target-feature=+crt-static"] if "windows" in target else [],
             }
             (folder / "source.json").write_text(json.dumps(manifest))
 
@@ -112,13 +123,14 @@ class ServerBuildTests(unittest.TestCase):
             root = Path(temp)
             self.fixture(root)
             (root / "aarch64-pc-windows-msvc" / "oxibonsai.exe").write_bytes(b"tampered")
-            with self.assertRaisesRegex(RuntimeError, "binary_sha256"):
-                PACKAGE.package(root, root / "output")
+            with patch.object(PACKAGE.BUILD.CONTRACT, "audit", side_effect=runtime_fixture):
+                with self.assertRaisesRegex(RuntimeError, "binary_sha256"):
+                    PACKAGE.package(root, root / "output")
 
     def test_package_requires_all_four_targets(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            with self.assertRaises(FileNotFoundError):
+            with self.assertRaisesRegex(RuntimeError, "complete supported target set"):
                 PACKAGE.package(root, root / "output")
 
     def test_package_layout_and_universal_architecture_checks(self):
@@ -131,11 +143,16 @@ class ServerBuildTests(unittest.TestCase):
                 self.assertTrue(check)
                 if "-create" in args:
                     Path(args[-1]).write_bytes(b"universal")
+                elif "-thin" in args:
+                    target = ("aarch64-apple-darwin" if args[args.index("-thin") + 1] == "arm64"
+                              else "x86_64-apple-darwin")
+                    Path(args[-1]).write_bytes(target.encode())
                 else:
                     self.assertEqual(args[-3:], ["-verify_arch", "arm64", "x86_64"])
 
             relative_to = Path.relative_to
             with patch.object(PACKAGE.subprocess, "run", side_effect=lipo), \
+                    patch.object(PACKAGE.BUILD.CONTRACT, "audit", side_effect=runtime_fixture), \
                     patch.object(PACKAGE.BUILD, "smoke"), \
                     patch.object(Path, "chmod", autospec=True, side_effect=Path.chmod) as chmod, \
                     patch.object(
