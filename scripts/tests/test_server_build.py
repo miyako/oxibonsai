@@ -19,6 +19,38 @@ PACKAGE = load("package-server")
 
 
 class ServerBuildTests(unittest.TestCase):
+    def test_provenance_inputs_use_canonical_lf_bytes(self):
+        for path in (BUILD.ROOT / "Cargo.lock",
+                     BUILD.ROOT / "oxibonsai" / "third party" / "LICENSE.txt"):
+            with self.subTest(path=path):
+                self.assertNotIn(b"\r\n", path.read_bytes())
+
+    def test_build_exports_license_from_pinned_git_object(self):
+        pin = json.loads((BUILD.ROOT / "upstream.json").read_text())
+        license_bytes = (BUILD.ROOT / "oxibonsai" / "third party" / "LICENSE.txt").read_bytes()
+        target = "aarch64-apple-darwin"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            source = root / "source"
+            source.mkdir()
+            (source / "LICENSE").write_bytes(license_bytes.replace(b"\n", b"\r\n"))
+            binary = root / "target" / target / "release" / "oxibonsai"
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"test-binary")
+            with patch.object(BUILD, "run", side_effect=[
+                pin["revision"], "", f"rustc {pin['rust']} (test)",
+            ]), patch.object(BUILD, "smoke"), patch.object(BUILD.subprocess, "run"), \
+                    patch.object(BUILD.subprocess, "check_output",
+                                 return_value=license_bytes) as git_show:
+                output = BUILD.build(target, root, source)
+            git_show.assert_called_once_with(
+                ["git", "show", f"{pin['revision']}:LICENSE"], cwd=source,
+            )
+            self.assertEqual((output / "UPSTREAM-LICENSE.txt").read_bytes(), license_bytes)
+            manifest = json.loads((output / "source.json").read_text())
+            self.assertEqual(manifest["license_sha256"],
+                             BUILD.sha256(BUILD.ROOT / "oxibonsai" / "third party" / "LICENSE.txt"))
+
     def test_smoke_checks_version_and_every_required_flag(self):
         flags = ("--model --host --port --tokenizer --max-seq-len --pool-size "
                  "--bearer-token --max-concurrent-requests --request-timeout-ms --config")

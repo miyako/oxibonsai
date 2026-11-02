@@ -92,7 +92,9 @@ def build(target, work, source=None):
     output = work / "artifacts" / target
     output.mkdir(parents=True, exist_ok=True)
     shutil.copy2(binary, output / name)
-    shutil.copyfile(source / "LICENSE", output / "UPSTREAM-LICENSE.txt")
+    (output / "UPSTREAM-LICENSE.txt").write_bytes(
+        subprocess.check_output(["git", "show", f"{pin['revision']}:LICENSE"], cwd=source)
+    )
     manifest = {
         **{key: pin[key] for key in ("repository", "tag", "revision", "committed_at", "version")},
         "target": target,

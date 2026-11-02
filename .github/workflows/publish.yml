@@ -10,6 +10,7 @@ on:
       - '*/Project/Sources/*.4DCatalog'
       - '*/Project/Resources/**'
       - '*/Resources/**'
+      - '.gitattributes'
       - 'upstream.json'
       - 'Cargo.lock'
       - 'scripts/**'
