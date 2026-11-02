@@ -1,24 +1,30 @@
 ---
 layout: default
-title: Tiny weights. Full-grown intelligence.
+title: Tiny weights. Great intelligence.
 landing: true
 ---
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
     <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local inference / 4D integration</p>
-    <h1 id="hero-title">Tiny weights.<br><span>Full-grown intelligence.</span></h1>
+    <h1 id="hero-title">Tiny weights.<br><span>Great intelligence.</span></h1>
     <p class="hero-description">Bring OxiBonsai into your 4D application. Run a local model server on macOS or Windows, and connect through a familiar HTTP API.</p>
     <div class="actions">
       <a class="button button-primary" href="https://github.com/miyako/oxibonsai/releases">Get the component <span aria-hidden="true">&nearr;</span></a>
       <a class="button button-secondary" href="{{ "/guide.html#use-from-4d" | relative_url }}">Read the guide <span aria-hidden="true">&rarr;</span></a>
     </div>
-    <p class="hero-note">4D 20+ <span aria-hidden="true">/</span> GGUF models <span aria-hidden="true">/</span> Open source</p>
   </div>
-  <div class="hero-art">
-    <div class="art-caption"><span>THE ENGINE, CLOSE AT HAND</span><span aria-hidden="true">01 /</span></div>
-    <img class="hero-icon" src="{{ "/assets/icon.png" | relative_url }}" alt="OxiBonsai wrapper icon: a rose-colored geometric mark and oxibonsai wordmark on charcoal." width="1024" height="1024" fetchpriority="high">
-    <div class="art-footer"><span class="status-dot" aria-hidden="true"></span><code>127.0.0.1:8080</code><span>Local by default</span></div>
+  <div class="stack-panel" role="group" aria-label="The local stack: your 4D application or HTTP client calls the OxiBonsai server over HTTP on 127.0.0.1:8080, which loads your GGUF model and compatible tokenizer">
+    <div class="panel-top"><span class="panel-label">The local stack</span><span class="panel-tag">On your machine</span></div>
+    <div class="stack-flow">
+      <div class="stack-node app-node"><span class="node-mark" aria-hidden="true">4D</span><span class="node-text"><strong>Your application</strong><small>4D component or any HTTP client</small></span></div>
+      <div class="stack-link">HTTP / 127.0.0.1:8080</div>
+      <div class="stack-node engine-node"><img class="node-logo" src="{{ site.logo | relative_url }}" width="52" height="52" alt=""><span class="node-text"><strong>OxiBonsai server</strong><small>Metal on Apple Silicon / CPU</small></span><span class="node-badge">oxibonsai serve</span></div>
+      <div class="stack-link">loads</div>
+      <div class="stack-node model-node"><span class="node-mark file-mark" aria-hidden="true">.gguf</span><span class="node-text"><strong>A model you choose</strong><small>GGUF weights &amp; compatible tokenizer</small></span></div>
+    </div>
+    <div class="panel-bottom"><span>Local by default</span><span>Chat &amp; completions</span></div>
   </div>
+  <div class="hero-meta"><span>4D 20+</span><span>GGUF models</span><span>Open source</span></div>
 </section>
 
 <section class="platform-section" aria-labelledby="platforms-title">

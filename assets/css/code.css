@@ -2,7 +2,7 @@
 .highlight table pre { margin: 0; }
 .highlight {
   color: #faf6e4;
-  background-color: #122b3b;
+  background-color: var(--code, #122b3b);
 }
 .highlight .gl {
   color: #dee5e7;
@@ -13,7 +13,7 @@
   font-weight: bold;
 }
 .highlight .c, .highlight .ch, .highlight .cd, .highlight .cm, .highlight .cpf, .highlight .c1, .highlight .cs {
-  color: #6c8b9f;
+  color: #9fb3c1;
   font-style: italic;
 }
 .highlight .cp {
@@ -25,7 +25,7 @@
   background-color: #cc0000;
 }
 .highlight .gr {
-  color: #cc0000;
+  color: #ff9a9a;
   font-weight: bold;
   font-style: italic;
 }
@@ -41,7 +41,7 @@
   color: #4df4ff;
 }
 .highlight .gd {
-  color: #cc0000;
+  color: #ff9a9a;
 }
 .highlight .gi {
   color: #b2fd6d;
