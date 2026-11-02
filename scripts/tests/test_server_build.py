@@ -1,6 +1,7 @@
 import importlib.util
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PureWindowsPath
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -101,16 +102,24 @@ class ServerBuildTests(unittest.TestCase):
                 else:
                     self.assertEqual(args[-3:], ["-verify_arch", "arm64", "x86_64"])
 
-            with patch.object(PACKAGE.subprocess, "run", side_effect=lipo):
-                with patch.object(PACKAGE.BUILD, "smoke"):
-                    PACKAGE.package(root, output)
+            relative_to = Path.relative_to
+            with patch.object(PACKAGE.subprocess, "run", side_effect=lipo), \
+                    patch.object(PACKAGE.BUILD, "smoke"), \
+                    patch.object(Path, "chmod", autospec=True, side_effect=Path.chmod) as chmod, \
+                    patch.object(
+                        Path, "relative_to", autospec=True,
+                        side_effect=lambda path, base: PureWindowsPath(relative_to(path, base)),
+                    ):
+                PACKAGE.package(root, output)
+            chmod.assert_called_once_with(output / "macOS" / "oxibonsai", 0o755)
             provenance = json.loads((output / "source.json").read_text())
             self.assertEqual(set(provenance["files"]), {
                 "macOS/oxibonsai", "Windows/oxibonsai.exe", "WindowsARM/oxibonsai.exe",
                 "UPSTREAM-LICENSE.txt",
             })
             self.assertEqual(len(provenance["builds"]), 4)
-            self.assertTrue((output / "macOS" / "oxibonsai").stat().st_mode & 0o111)
+            if os.name != "nt":
+                self.assertTrue((output / "macOS" / "oxibonsai").stat().st_mode & 0o111)
             (output / "Windows" / "oxibonsai.exe").write_bytes(b"tampered")
             with self.assertRaisesRegex(RuntimeError, "checksum"):
                 PACKAGE.verify(output)

@@ -148,6 +148,7 @@ macOS ARM/Intel and Windows x64/ARM64 runners. It combines the Mac slices with
 and uploads **`server-resource-bin`** with the complete 4D resource layout and
 `source.json`. The upstream license is included in both native artifacts and
 the final `Resources/bin/UPSTREAM-LICENSE.txt`, with its checksum recorded.
+Manifest resource paths always use forward slashes, including on Windows.
 CI uses Python 3.13.17, which has native distributions for all four runners.
 For manual staging on macOS, collect the four target artifact
 directories and run:
