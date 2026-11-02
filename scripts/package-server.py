@@ -57,7 +57,7 @@ def package(artifacts, output):
         "upstream": pin,
         "builds": manifests,
         "files": {
-            str(path.relative_to(output)): BUILD.sha256(path)
+            path.relative_to(output).as_posix(): BUILD.sha256(path)
             for path in (mac / "oxibonsai", output / "Windows" / "oxibonsai.exe",
                          output / "WindowsARM" / "oxibonsai.exe",
                          output / "UPSTREAM-LICENSE.txt")
