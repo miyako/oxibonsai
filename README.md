@@ -6,6 +6,12 @@ Run the [OxiBonsai](https://github.com/cool-japan/oxibonsai) local HTTP server f
 This repository is the MIT-licensed 4D component and its build/packaging integration,
 not the upstream inference engine. The upstream Rust engine is Apache-2.0 licensed.
 
+The documentation site follows the [shared local inference site design](https://github.com/miyako/local-inference-site-design/blob/main/SITE-DESIGN.md),
+with oxibonsai's own branding and capabilities. Preview it with
+`bundle exec jekyll serve --destination .build/site` and open
+`http://127.0.0.1:4000/oxibonsai/`. Check the overview and guide in light and dark
+mode at desktop and mobile widths when changing the layout or styles.
+
 ## Installation and targets
 
 Download a component from [Releases](https://github.com/miyako/oxibonsai/releases),
