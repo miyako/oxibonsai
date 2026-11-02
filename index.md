@@ -6,7 +6,7 @@ landing: true
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
     <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local inference / 4D integration</p>
-    <h1 id="hero-title">Tiny weights.<br><span>Great intelligence.</span></h1>
+    <h1 id="hero-title">Tiny weights. <span>Great intelligence.</span></h1>
     <p class="hero-description">Bring OxiBonsai into your 4D application. Run a local model server on macOS or Windows, and connect through a familiar HTTP API.</p>
     <div class="actions">
       <a class="button button-primary" href="https://github.com/miyako/oxibonsai/releases">Get the component <span aria-hidden="true">&nearr;</span></a>

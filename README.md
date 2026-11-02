@@ -1,16 +1,23 @@
 # oxibonsai for 4D
 
-[Overview](https://miyako.github.io/oxibonsai/) | [Integration guide](https://miyako.github.io/oxibonsai/guide.html)
+[Overview](https://miyako.github.io/oxibonsai/) / [Integration guide](https://miyako.github.io/oxibonsai/guide.html)
 
 Run the [OxiBonsai](https://github.com/cool-japan/oxibonsai) local HTTP server from **4D 20+**.
 This repository is the MIT-licensed 4D component and its build/packaging integration,
 not the upstream inference engine. The upstream Rust engine is Apache-2.0 licensed.
 
-The documentation site follows the [shared local inference site design](https://github.com/miyako/local-inference-site-design/blob/main/SITE-DESIGN.md),
-with oxibonsai's own branding and capabilities. Preview it with
+The documentation site adopts the [shared local inference site design v1.0.0](https://github.com/miyako/local-inference-site-design/blob/v1.0.0/SITE-DESIGN.md),
+with oxibonsai's own branding and capabilities. Guideline updates are reviewed
+[centrally](https://github.com/miyako/local-inference-site-design#adopting-changes)
+and adopted explicitly here; there is no shared runtime stylesheet or dependency.
+The sidebar and stack use `assets/icon.png`, copied unchanged from
+`oxibonsai/Resources/icon.png`; the favicon and touch icon are resized versions
+of that resource, not replacement artwork. Preview the site with
 `bundle exec jekyll serve --destination .build/site` and open
 `http://127.0.0.1:4000/oxibonsai/`. Check the overview and guide in light and dark
-mode at desktop and mobile widths when changing the layout or styles.
+mode at 1440, 1024, 768, 390 and 320 CSS-pixel widths when changing the layout
+or styles. Check keyboard navigation, clipboard feedback, table scrolling,
+local links, and the stack layout (beside the hero above 1000px, below otherwise).
 
 ## Installation and targets
 
@@ -21,12 +28,18 @@ dependencies in `oxibonsai/Project/Sources/dependencies.json`; resolve these wit
 4D's dependency manager when using the source project.
 Model weights are **not included** and require separate disk space and RAM.
 
-| Component target | Resource executable | Build features |
-|---|---|---|
-| macOS Apple Silicon | `Resources/bin/macOS/oxibonsai` (universal) | `server,metal` |
-| macOS Intel | same universal executable | `server` (CPU) |
-| Windows x64 | `Resources/bin/Windows/oxibonsai.exe` | `server` (CPU) |
-| Windows ARM64 | `Resources/bin/WindowsARM/oxibonsai.exe` | `server` (CPU) |
+<div class="table-scroll" role="region" aria-labelledby="targets-caption" tabindex="0">
+<table>
+<caption id="targets-caption">Component targets and bundled executables</caption>
+<thead><tr><th scope="col">Component target</th><th scope="col">Resource executable</th><th scope="col">Build features</th></tr></thead>
+<tbody>
+<tr><th scope="row">macOS Apple Silicon</th><td><code>Resources/bin/macOS/oxibonsai</code> (universal)</td><td><code>server,metal</code></td></tr>
+<tr><th scope="row">macOS Intel</th><td>same universal executable</td><td><code>server</code> (CPU)</td></tr>
+<tr><th scope="row">Windows x64</th><td><code>Resources/bin/Windows/oxibonsai.exe</code></td><td><code>server</code> (CPU)</td></tr>
+<tr><th scope="row">Windows ARM64</th><td><code>Resources/bin/WindowsARM/oxibonsai.exe</code></td><td><code>server</code> (CPU)</td></tr>
+</tbody>
+</table>
+</div>
 
 No Linux component or CUDA-enabled executable is packaged here. Upstream's optional
 CUDA, RAG, and other CLI capabilities are not promises of this component's builds.
@@ -75,16 +88,22 @@ Options use underscores; the wrapper converts them to CLI hyphens. The model
 downloader supplies `model` as a `4D.File`. Optional `tokenizer` must also be a
 `4D.File`; omitting it selects the bundled tokenizer.
 
-| 4D option / CLI flag | Upstream default / meaning |
-|---|---|
-| `host` / `--host` | `127.0.0.1` |
-| constructor port / `--port` | `8080` |
-| `max_seq_len` / `--max-seq-len` | `4096`, prompt plus generation context |
-| `pool_size` / `--pool-size` | CPU: min(4, cores); GPU/Metal clamped to 1 |
-| `max_concurrent_requests` / `--max-concurrent-requests` | `32`; excess requests return 503 |
-| `request_timeout_ms` / `--request-timeout-ms` | `60000`; timed-out requests return 408 |
-| `bearer_token` / `--bearer-token` | Unset: no authentication |
-| `config` / `--config` | Optional upstream TOML config (observability settings; not a substitute for server flags) |
+<div class="table-scroll" role="region" aria-labelledby="options-caption" tabindex="0">
+<table>
+<caption id="options-caption">4D options and corresponding server flags</caption>
+<thead><tr><th scope="col">4D option / CLI flag</th><th scope="col">Upstream default / meaning</th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>host</code> / <code>--host</code></th><td><code>127.0.0.1</code></td></tr>
+<tr><th scope="row">constructor port / <code>--port</code></th><td><code>8080</code></td></tr>
+<tr><th scope="row"><code>max_seq_len</code> / <code>--max-seq-len</code></th><td><code>4096</code>, prompt plus generation context</td></tr>
+<tr><th scope="row"><code>pool_size</code> / <code>--pool-size</code></th><td>CPU: min(4, cores); GPU/Metal clamped to 1</td></tr>
+<tr><th scope="row"><code>max_concurrent_requests</code> / <code>--max-concurrent-requests</code></th><td><code>32</code>; excess requests return 503</td></tr>
+<tr><th scope="row"><code>request_timeout_ms</code> / <code>--request-timeout-ms</code></th><td><code>60000</code>; timed-out requests return 408</td></tr>
+<tr><th scope="row"><code>bearer_token</code> / <code>--bearer-token</code></th><td>Unset: no authentication</td></tr>
+<tr><th scope="row"><code>config</code> / <code>--config</code></th><td>Optional upstream TOML config (observability settings; not a substitute for server flags)</td></tr>
+</tbody>
+</table>
+</div>
 
 Keep the loopback binding unless you deliberately configure network access.
 `bearer_token` is forwarded to the server; clients must send
@@ -100,13 +119,19 @@ For 4D AI Kit's OpenAI-compatible provider, use base URL
 `http://127.0.0.1:8080/v1`, the model ID returned by `GET /v1/models`, and
 the same bearer token if configured.
 
-| API | Component's `oxibonsai serve` |
-|---|---|
-| `GET /v1/models` | Available |
-| `POST /v1/chat/completions` | Available, including streaming upstream |
-| `POST /v1/completions` | Available upstream |
-| `POST /v1/embeddings` | Available, but uses TF-IDF/byte-hash vectors, not Bonsai model embeddings |
-| Images, files, moderations | Not exposed by this server entry point |
+<div class="table-scroll" role="region" aria-labelledby="api-caption" tabindex="0">
+<table>
+<caption id="api-caption">API boundaries of the component's server entry point</caption>
+<thead><tr><th scope="col">API</th><th scope="col">Component's <code>oxibonsai serve</code></th></tr></thead>
+<tbody>
+<tr><th scope="row"><code>GET /v1/models</code></th><td>Available</td></tr>
+<tr><th scope="row"><code>POST /v1/chat/completions</code></th><td>Available, including streaming upstream</td></tr>
+<tr><th scope="row"><code>POST /v1/completions</code></th><td>Available upstream</td></tr>
+<tr><th scope="row"><code>POST /v1/embeddings</code></th><td>Available, but uses TF-IDF/byte-hash vectors, not Bonsai model embeddings</td></tr>
+<tr><th scope="row">Images, files, moderations</th><td>Not exposed by this server entry point</td></tr>
+</tbody>
+</table>
+</div>
 
 Upstream's separate image CLI and `oxibonsai-serve` binary are not used by this wrapper.
 The embeddings endpoint accepts but ignores the requested model name; do not
