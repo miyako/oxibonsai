@@ -9,6 +9,12 @@ on:
       - '*/Project/Sources/*/*.4DForm'
       - '*/Project/Sources/*.4DCatalog'
       - '*/Project/Resources/**'
+      - '*/Resources/**'
+      - 'upstream.json'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - '.github/workflows/build-server.yml'
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
     inputs:
         use_self_hosted:
@@ -30,7 +36,13 @@ env:
   
 jobs:
 
+  server:
+    uses: ./.github/workflows/build-server.yml
+    permissions:
+      contents: read
+
   publish:
+    needs: server
     if: ${{ github.event.inputs.use_self_hosted != 'true' }}
     permissions: write-all
     runs-on: [macos-latest]
@@ -50,6 +62,18 @@ jobs:
         uses: miyako/4D/.github/actions/package-set-version@v1
         with:
           mode: ${{ steps.configure.outputs.mode }}
+
+      - name: Stage source-built server binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: server-resource-bin
+          path: oxibonsai/Resources/bin
+
+      - name: Restore executable permission
+        run: |
+          python3 scripts/package-server.py --verify-only --output oxibonsai/Resources/bin
+          chmod +x oxibonsai/Resources/bin/macOS/oxibonsai
+          oxibonsai/Resources/bin/macOS/oxibonsai --version
 
       - name: get tool version
         id: tool
@@ -72,6 +96,11 @@ jobs:
           project_path: ${{ steps.configure.outputs.project_path }}
           pack_project: 'true'
           use_standard_zip: 'true'
+
+      - name: Verify packaged server provenance
+        run: python3 scripts/package-server.py --verify-only --output "$PRODUCT_PATH/Resources/bin"
+        env:
+          PRODUCT_PATH: ${{ steps.build.outputs.product_path }}
 
       - name: setup keychain 
         id: keychain
@@ -111,6 +140,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
 
   publish-locally:
+    needs: server
     if: ${{ github.event.inputs.use_self_hosted == 'true' }}
     permissions: write-all
     runs-on: [self-hosted, macos]
@@ -130,6 +160,18 @@ jobs:
         uses: miyako/4D/.github/actions/package-set-version@v1
         with:
           mode: ${{ steps.configure.outputs.mode }}
+
+      - name: Stage source-built server binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: server-resource-bin
+          path: oxibonsai/Resources/bin
+
+      - name: Restore executable permission
+        run: |
+          python3 scripts/package-server.py --verify-only --output oxibonsai/Resources/bin
+          chmod +x oxibonsai/Resources/bin/macOS/oxibonsai
+          oxibonsai/Resources/bin/macOS/oxibonsai --version
 
       - name: get tool version
         id: tool
@@ -152,6 +194,11 @@ jobs:
           project_path: ${{ steps.configure.outputs.project_path }}
           pack_project: 'true'
           use_standard_zip: 'true'
+
+      - name: Verify packaged server provenance
+        run: python3 scripts/package-server.py --verify-only --output "$PRODUCT_PATH/Resources/bin"
+        env:
+          PRODUCT_PATH: ${{ steps.build.outputs.product_path }}
 
       - name: setup keychain 
         id: keychain

@@ -28,7 +28,7 @@ Function start($option : Object) : 4D:C1709.SystemWorker
 	
 	For each ($arg; OB Entries:C1720($option))
 		Case of 
-			: (["model"; "bearer_token"; "tokenizer"; "help"; "version"].includes($arg.key))
+			: (["model"; "tokenizer"; "help"; "version"].includes($arg.key))
 				continue
 		End case 
 		$valueType:=Value type:C1509($arg.value)
@@ -64,12 +64,12 @@ Function start($option : Object) : 4D:C1709.SystemWorker
 		End case 
 	End for each 
 	
-	var $HF_HUB_CACHE; $LLAMA_CACHE : 4D:C1709.Folder
-	$HF_HUB_CACHE:=Folder:C1567(Temporary folder:C486; fk platform path:K87:2).folder(Generate UUID:C1066)
-	$HF_HUB_CACHE.create()
-	
 	var $OXI_TOKENIZER : 4D:C1709.File
-	$OXI_TOKENIZER:=File:C1566("/RESOURCES/models/tokenizer.json")
+	If ($option.tokenizer=Null:C1517)
+		$OXI_TOKENIZER:=File:C1566("/RESOURCES/models/tokenizer.json")
+	Else
+		$OXI_TOKENIZER:=$option.tokenizer
+	End if
 	
 	$command+=" --tokenizer "
 	$command+=This:C1470.escape(This:C1470.expand($OXI_TOKENIZER).path)

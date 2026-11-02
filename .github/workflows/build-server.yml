@@ -1,0 +1,89 @@
+name: Build server from source
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'upstream.json'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - '.github/workflows/build-server.yml'
+      - '.github/workflows/publish.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'upstream.json'
+      - 'Cargo.lock'
+      - 'scripts/**'
+      - '.github/workflows/build-server.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            arch: arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x64
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            arch: x64
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.17'
+          architecture: ${{ matrix.arch }}
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          version=$(python -c 'import json; print(json.load(open("upstream.json"))["rust"])')
+          rustup toolchain install "$version" --profile minimal --target '${{ matrix.target }}'
+      - name: Test build tooling
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Build and smoke-test native server
+        run: python scripts/build-server.py --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.target }}
+          path: .build/server/artifacts/${{ matrix.target }}/
+          if-no-files-found: error
+
+  package:
+    needs: native
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.17'
+          architecture: arm64
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: server-*
+          path: .build/downloads
+      - name: Assemble verified resource layout
+        shell: bash
+        run: |
+          mkdir -p .build/native
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
+            mv ".build/downloads/server-$target" ".build/native/$target"
+          done
+          python scripts/package-server.py --artifacts .build/native --output .build/bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-resource-bin
+          path: .build/bin/
+          if-no-files-found: error

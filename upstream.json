@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/cool-japan/oxibonsai.git",
+  "tag": "v0.2.3",
+  "revision": "1d10c48e14754ff6999158f8fa13c7c92b40b0dc",
+  "committed_at": "2026-07-22T09:54:07Z",
+  "package": "oxibonsai-cli",
+  "binary": "oxibonsai",
+  "version": "0.2.3",
+  "rust": "1.99.0",
+  "targets": {
+    "aarch64-apple-darwin": ["server", "metal"],
+    "x86_64-apple-darwin": ["server"],
+    "x86_64-pc-windows-msvc": ["server"],
+    "aarch64-pc-windows-msvc": ["server"]
+  }
+}
