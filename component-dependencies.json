@@ -1,0 +1,14 @@
+{
+  "tcp": {
+    "version": "20.0.10",
+    "sha256": "7256a8e89a8732c0697a648a19f2b0907d158e20882f6b8f0fd5eb589826bff4"
+  },
+  "workers": {
+    "version": "20.0.19",
+    "sha256": "10d1e22b8c89b4dda330d0b3a9bd0ccc719d69d83df65ff3d3c81e656d6a548a"
+  },
+  "event": {
+    "version": "20.0.19",
+    "sha256": "c2b05cc4b2aa304b2acc12efb434277f40d13275a4006f40f3a2a71c12e13baf"
+  }
+}

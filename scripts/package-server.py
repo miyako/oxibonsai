@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 from importlib.util import module_from_spec, spec_from_file_location
 
@@ -17,6 +18,10 @@ ROOT = BUILD.ROOT
 
 def package(artifacts, output):
     pin = json.loads((ROOT / "upstream.json").read_text())
+    if output.exists() and any(output.iterdir()):
+        raise RuntimeError("Use an empty output directory; never merge stale artifacts")
+    if {path.name for path in artifacts.iterdir()} != set(pin["targets"]):
+        raise RuntimeError("Expected exactly the complete supported target set")
     manifests = {}
     binaries = {}
     for target in pin["targets"]:
@@ -29,6 +34,11 @@ def package(artifacts, output):
             raise RuntimeError(f"{target}: provenance mismatch for binary_sha256")
         if manifest["license_sha256"] != BUILD.sha256(folder / "UPSTREAM-LICENSE.txt"):
             raise RuntimeError(f"{target}: provenance mismatch for license_sha256")
+        if set(path.name for path in folder.iterdir()) != {name, "source.json", "UPSTREAM-LICENSE.txt"}:
+            raise RuntimeError(f"{target}: unexpected native artifact files")
+        BUILD.CONTRACT.sizes(folder)
+        if manifest["runtime_dependencies"] != BUILD.CONTRACT.audit(binary, target):
+            raise RuntimeError(f"{target}: runtime audit mismatch")
         manifests[target] = manifest
         binaries[target] = binary
     output.mkdir(parents=True, exist_ok=True)
@@ -54,6 +64,7 @@ def package(artifacts, output):
         folder.mkdir(exist_ok=True)
         shutil.copy2(binaries[target], folder / "oxibonsai.exe")
     manifest = {
+        "checksum_stage": "pre-component-signing",
         "upstream": pin,
         "builds": manifests,
         "files": {
@@ -81,6 +92,33 @@ def verify(output):
     for path in paths:
         if BUILD.sha256(output / path) != manifest["files"][path]:
             raise RuntimeError(f"Packaged binary checksum mismatch: {path}")
+    if manifest.get("checksum_stage") != "pre-component-signing":
+        raise RuntimeError("Missing pre-signing checksum scope")
+    actual = set(BUILD.CONTRACT.sizes(output))
+    if actual != paths | {"source.json"}:
+        raise RuntimeError(f"Unexpected resource closure: {actual}")
+    mac_dependencies = BUILD.CONTRACT.audit(
+        output / "macOS" / "oxibonsai", "universal-apple-darwin",
+    )
+    for target, arch in (("aarch64-apple-darwin", "arm64"), ("x86_64-apple-darwin", "x86_64")):
+        expected = manifest["builds"][target]["runtime_dependencies"]
+        if expected != {arch: mac_dependencies[arch]}:
+            raise RuntimeError(f"{target}: packaged Mach-O runtime audit mismatch")
+        with tempfile.TemporaryDirectory() as temp:
+            thin = Path(temp) / "oxibonsai"
+            subprocess.run(
+                ["lipo", str(output / "macOS" / "oxibonsai"), "-thin", arch,
+                 "-output", str(thin)], check=True,
+            )
+            if BUILD.sha256(thin) != manifest["builds"][target]["binary_sha256"]:
+                raise RuntimeError(f"{target}: build/package slice checksum mismatch")
+    for target, platform in (("x86_64-pc-windows-msvc", "Windows"),
+                             ("aarch64-pc-windows-msvc", "WindowsARM")):
+        binary = output / platform / "oxibonsai.exe"
+        if BUILD.sha256(binary) != manifest["builds"][target]["binary_sha256"]:
+            raise RuntimeError(f"{target}: build/package binary mismatch")
+        if BUILD.CONTRACT.audit(binary, target) != manifest["builds"][target]["runtime_dependencies"]:
+            raise RuntimeError(f"{target}: runtime audit mismatch")
 
 
 if __name__ == "__main__":

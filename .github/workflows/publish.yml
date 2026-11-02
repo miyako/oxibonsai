@@ -1,239 +1,130 @@
 name: Publish
-  
+
 on:
   push:
-    branches:
-    - main
+    branches: [main]
     paths:
-      - '*/Project/Sources/**/*.4dm'
-      - '*/Project/Sources/*/*.4DForm'
-      - '*/Project/Sources/*.4DCatalog'
-      - '*/Project/Resources/**'
-      - '*/Resources/**'
-      - '.gitattributes'
+      - 'oxibonsai/Project/Sources/**'
+      - 'oxibonsai/Resources/**'
+  pull_request:
+    paths:
+      - 'oxibonsai/**'
+      - 'scripts/**'
       - 'upstream.json'
       - 'Cargo.lock'
-      - 'scripts/**'
-      - '.github/workflows/build-server.yml'
+      - 'component-dependencies.json'
+      - '.github/actions/compile-component/**'
       - '.github/workflows/publish.yml'
   workflow_dispatch:
     inputs:
-        use_self_hosted:
-            type: boolean
-            description: when github hosted runners are busy
-            required: true
-            default: false
-        mode:
-          type: choice
-          description: semantic versioning
-          options: 
-          - patch
-          - minor 
-          - major
-          required: true
+      use_self_hosted:
+        type: boolean
+        description: Use the trusted self-hosted macOS packaging runner
+        required: true
+        default: false
+      mode:
+        type: choice
+        description: Component semantic version increment
+        options: [patch, minor, major]
+        required: true
+        default: patch
 
-env: 
-  project_path: oxibonsai/Project/oxibonsai.4DProject
-  
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('component-pr-{0}', github.event.number) || 'component-resources-main' }}
+  cancel-in-progress: false
+
 jobs:
-
-  server:
-    uses: ./.github/workflows/build-server.yml
-    permissions:
-      contents: read
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate committed resource closure
+        run: |
+          python3 scripts/package-server.py --verify-only --output oxibonsai/Resources/bin
+          oxibonsai/Resources/bin/macOS/oxibonsai --version
+      - uses: ./.github/actions/compile-component
 
   publish:
-    needs: server
-    if: ${{ github.event.inputs.use_self_hosted != 'true' }}
-    permissions: write-all
-    runs-on: [macos-latest]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    environment: component-publish
+    permissions:
+      contents: write
+    runs-on: ${{ fromJSON(inputs.use_self_hosted == true && '["self-hosted","macos"]' || '["macos-15"]') }}
+    timeout-minutes: 60
     steps:
-
-      - name: configure
-        id: configure
-        uses: miyako/4D/.github/actions/bash/configure@v1
+      - uses: actions/checkout@v4
         with:
-          mode: ${{ inputs.mode || 'patch' }}
-
-      - name: checkout 
-        uses: actions/checkout@v4
-
-      - name: set version
-        id: version
-        uses: miyako/4D/.github/actions/package-set-version@v1
-        with:
-          mode: ${{ steps.configure.outputs.mode }}
-
-      - name: Stage source-built server binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: server-resource-bin
-          path: oxibonsai/Resources/bin
-
-      - name: Restore executable permission
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Require clean, current main and committed native resources
         run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
           python3 scripts/package-server.py --verify-only --output oxibonsai/Resources/bin
-          chmod +x oxibonsai/Resources/bin/macOS/oxibonsai
           oxibonsai/Resources/bin/macOS/oxibonsai --version
-
-      - name: get tool version
-        id: tool
-        uses: miyako/4D/.github/actions/tool4d-get-version@v1
-        
-      - name: get tool4d
-        id: get
-        uses: miyako/4D/.github/actions/tool4d-download@v1
-        with:
-          platform: ${{ steps.tool.outputs.platform }}
-          branch: ${{ steps.tool.outputs.branch }}
-          version: ${{ steps.tool.outputs.version }}
-          build: ${{ steps.tool.outputs.build }}
-          arch: ${{ steps.tool.outputs.arch }}
-
-      - name: build
-        id: build
-        uses: miyako/4D/.github/actions/build-component@v1
-        with:
-          project_path: ${{ steps.configure.outputs.project_path }}
-          pack_project: 'true'
-          use_standard_zip: 'true'
-
-      - name: Verify packaged server provenance
-        run: python3 scripts/package-server.py --verify-only --output "$PRODUCT_PATH/Resources/bin"
+      - name: Bump component version locally, before generated files
+        id: version
         env:
-          PRODUCT_PATH: ${{ steps.build.outputs.product_path }}
-
-      - name: setup keychain 
+          VERSION_MODE: ${{ inputs.mode || 'patch' }}
+        run: |
+          set -euo pipefail
+          npm version "$VERSION_MODE" --no-git-tag-version
+          version=$(node -p 'require("./package.json").version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package.json
+          git commit -m "Bump component to $version" \
+            -m "Co-authored-by: Copilot App <223556219+Copilot@users.noreply.github.com>"
+          git tag "$version"
+      - name: Compile and verify committed resources
+        uses: ./.github/actions/compile-component
+      - name: Setup signing keychain
         id: keychain
         uses: miyako/4D/.github/actions/deployment-setup-keychain@v1
         with:
           APPLE_DEVELOPER_ID_CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
           APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-
-      - name: codesign
-        id: codesign
-        uses: miyako/4D/.github/actions/deployment-codesign-product@v1
-        with: 
-          sign: ${{ secrets.CODESIGN_APPLE_ID }} 
-          apple_id: ${{ secrets.NOTARYTOOL_APPLE_ID }}         
-          team_id: ${{ secrets.NOTARYTOOL_TEAM_ID }}   
-          password: ${{ secrets.NOTARYTOOL_PASSWORD }}
-          product_path: ${{ steps.build.outputs.product_path }}
-          keychain: ${{ steps.keychain.outputs.KEYCHAIN_PATH }}
-          
-      - name: zip
-        id: zip
-        uses: miyako/4D/.github/actions/deployment-create-zip@v1
-        with: 
-          dmg_path: ${{ steps.codesign.outputs.dmg_path }}
-          zip_path: ${{ steps.codesign.outputs.zip_path }}
-
-      - name: upload assets
-        id: upload
-        uses: miyako/4D/.github/actions/deployment-release-assets@v1
-        with: 
-          dmg_path: ${{ steps.zip.outputs.dmg_path }}
-          zip_path: ${{ steps.zip.outputs.zip_path }}    
-          tag_name: ${{ steps.version.outputs.version }}   
-          release_name: ${{ steps.version.outputs.version }}  
+      - name: Sign all generated code and notarize fail-closed
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
-
-  publish-locally:
-    needs: server
-    if: ${{ github.event.inputs.use_self_hosted == 'true' }}
-    permissions: write-all
-    runs-on: [self-hosted, macos]
-    steps:
-
-      - name: configure
-        id: configure
-        uses: miyako/4D/.github/actions/bash/configure@v1
-        with:
-          mode: ${{ inputs.mode || 'patch' }}
-
-      - name: checkout 
-        uses: actions/checkout@v4
-
-      - name: set version
-        id: version
-        uses: miyako/4D/.github/actions/package-set-version@v1
-        with:
-          mode: ${{ steps.configure.outputs.mode }}
-
-      - name: Stage source-built server binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: server-resource-bin
-          path: oxibonsai/Resources/bin
-
-      - name: Restore executable permission
+          SIGNING_IDENTITY: ${{ secrets.CODESIGN_APPLE_ID }}
+          KEYCHAIN_PATH: ${{ steps.keychain.outputs.KEYCHAIN_PATH }}
+          APPLE_ID: ${{ secrets.NOTARYTOOL_APPLE_ID }}
+          TEAM_ID: ${{ secrets.NOTARYTOOL_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARYTOOL_PASSWORD }}
+        run: python3 scripts/sign-component.py
+      - name: Push version commit and tag only after package gates
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          python3 scripts/package-server.py --verify-only --output oxibonsai/Resources/bin
-          chmod +x oxibonsai/Resources/bin/macOS/oxibonsai
-          oxibonsai/Resources/bin/macOS/oxibonsai --version
-
-      - name: get tool version
-        id: tool
-        uses: miyako/4D/.github/actions/tool4d-get-version@v1
-        
-      - name: get tool4d
-        id: get
-        uses: miyako/4D/.github/actions/tool4d-download@v1
-        with:
-          platform: ${{ steps.tool.outputs.platform }}
-          branch: ${{ steps.tool.outputs.branch }}
-          version: ${{ steps.tool.outputs.version }}
-          build: ${{ steps.tool.outputs.build }}
-          arch: ${{ steps.tool.outputs.arch }}
-
-      - name: build
-        id: build
-        uses: miyako/4D/.github/actions/build-component@v1
-        with:
-          project_path: ${{ steps.configure.outputs.project_path }}
-          pack_project: 'true'
-          use_standard_zip: 'true'
-
-      - name: Verify packaged server provenance
-        run: python3 scripts/package-server.py --verify-only --output "$PRODUCT_PATH/Resources/bin"
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$VERSION:refs/tags/$VERSION"
+      - name: Publish component assets
         env:
-          PRODUCT_PATH: ${{ steps.build.outputs.product_path }}
-
-      - name: setup keychain 
-        id: keychain
-        uses: miyako/4D/.github/actions/deployment-setup-keychain@v1
-        with:
-          APPLE_DEVELOPER_ID_CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
-          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-
-      - name: codesign
-        id: codesign
-        uses: miyako/4D/.github/actions/deployment-codesign-product@v1
-        with: 
-          sign: ${{ secrets.CODESIGN_APPLE_ID }} 
-          apple_id: ${{ secrets.NOTARYTOOL_APPLE_ID }}         
-          team_id: ${{ secrets.NOTARYTOOL_TEAM_ID }}   
-          password: ${{ secrets.NOTARYTOOL_PASSWORD }}
-          product_path: ${{ steps.build.outputs.product_path }}
-          keychain: ${{ steps.keychain.outputs.KEYCHAIN_PATH }}
-          
-      - name: zip
-        id: zip
-        uses: miyako/4D/.github/actions/deployment-create-zip@v1
-        with: 
-          dmg_path: ${{ steps.codesign.outputs.dmg_path }}
-          zip_path: ${{ steps.codesign.outputs.zip_path }}
-
-      - name: upload assets
-        id: upload
-        uses: miyako/4D/.github/actions/deployment-release-assets@v1
-        with: 
-          dmg_path: ${{ steps.zip.outputs.dmg_path }}
-          zip_path: ${{ steps.zip.outputs.zip_path }}    
-          tag_name: ${{ steps.version.outputs.version }}   
-          release_name: ${{ steps.version.outputs.version }}  
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" --verify-tag --title "$VERSION" \
+            oxibonsai.dmg oxibonsai.zip SHA256SUMS notarization.json
+      - name: Remove signing keychain
+        if: ${{ always() && steps.keychain.outputs.KEYCHAIN_PATH != '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
+          KEYCHAIN_PATH: ${{ steps.keychain.outputs.KEYCHAIN_PATH }}
+          CERTIFICATE_PATH: ${{ steps.keychain.outputs.CERTIFICATE_PATH }}
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH"
+          rm -f "$CERTIFICATE_PATH"

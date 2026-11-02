@@ -1,2 +1,3 @@
 Cargo.lock text eol=lf
 "oxibonsai/third party/LICENSE.txt" text eol=lf
+oxibonsai/Resources/bin/** -text

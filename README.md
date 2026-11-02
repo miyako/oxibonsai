@@ -139,7 +139,9 @@ Use the corresponding target triple from `upstream.json` on each other host.
 The script fetches the exact commit, checks the source is clean, copies the
 lockfile, builds release mode with explicit features, checks `--version` and
 `serve --help`, and writes the executable plus SHA-256 provenance to
-`.build/server/artifacts/<target>/`. It refuses host-specific `RUSTFLAGS`.
+`.build/server/artifacts/<target>/`. It refuses inherited `RUSTFLAGS` and
+`CARGO_ENCODED_RUSTFLAGS`. Windows builds explicitly set the recorded
+`-C target-feature=+crt-static` so the VC runtime is not an unbundled prerequisite.
 For an update, change the pin intentionally, regenerate `Cargo.lock` using the
 pinned Rust toolchain against that source, and rerun all four native builds.
 Use a fresh `--work-dir` when changing the source pin.
@@ -147,6 +149,7 @@ Use a fresh `--work-dir` when changing the source pin.
 The [source-build workflow](https://github.com/miyako/oxibonsai/blob/main/.github/workflows/build-server.yml) runs on native
 macOS ARM/Intel and Windows x64/ARM64 runners. It combines the Mac slices with
 `lipo`, verifies both architectures, checks each artifact's source/lockfile/hash,
+audits Mach-O imports and normal/delayed PE imports against system runtimes,
 and uploads **`server-resource-bin`** with the complete 4D resource layout and
 `source.json`. The upstream license is included in both native artifacts and
 the final `Resources/bin/UPSTREAM-LICENSE.txt`, with its checksum recorded.
@@ -162,27 +165,86 @@ directories and run:
 python3 scripts/package-server.py --artifacts .build/native --output .build/bin
 ```
 
-Copy the contents of `.build/bin/` into `oxibonsai/Resources/bin/` only after all
-targets succeed. Generated files are ignored; builds do not commit binaries.
 Each native binary is smoke-tested on its own runner before universal packaging.
+Assembly requires all four targets, exact provenance, system-only runtime closure,
+an empty output directory and files strictly smaller than GitHub's 100 MiB limit
+(104,857,600 bytes), including the **combined** universal Mac executable.
+Unexpected resources, missing targets and external runtime DLLs fail before
+replacement. No Git LFS conversion or partial matrix update is attempted.
 
-The existing [Publish workflow](https://github.com/miyako/oxibonsai/blob/main/.github/workflows/publish.yml) now **requires**
-this complete source build and stages its artifacts before 4D compilation,
-then verifies the compiled component's resource checksums before
-signing/notarization and release packaging. This applies to both hosted
-and self-hosted publishing; self-hosted publishing still requires GitHub-hosted
-native build jobs and Python 3.12+ on the packaging host. The component version
-(`package.json`, currently 20.0.4) is
-independent of upstream 0.2.3. **Publish increments that version and publishes a
-release; use Build server from source alone for build-only validation.**
-The provenance checksums describe the **pre-signing** artifacts; macOS code
-signing changes executable bytes in the published component.
+### Native refresh, then quick component publication
+
+1. Intentionally update `upstream.json`, `Cargo.lock` and the upstream license
+   together when adopting new source. Run **Build server from source** for
+   read-only validation; PR/push/build-only runs only upload artifacts.
+2. After reviewing the source change on `main`, explicitly run
+   [Update committed native resources](https://github.com/miyako/oxibonsai/blob/main/.github/workflows/native-update.yml)
+   from `main` with **`update_git=true`**. This rebuilds the pinned source on all
+   four native runners, then verifies and **commits/pushes** precisely these paths:
+   `oxibonsai/Resources/bin/macOS/oxibonsai`,
+   `oxibonsai/Resources/bin/Windows/oxibonsai.exe`,
+   `oxibonsai/Resources/bin/WindowsARM/oxibonsai.exe`,
+   `oxibonsai/Resources/bin/UPSTREAM-LICENSE.txt` and
+   `oxibonsai/Resources/bin/source.json`. It does not modify models/tokenizers,
+   wrapper filenames, other platforms or component version metadata.
+3. Review the resulting resource commit, then separately dispatch
+   [Publish](https://github.com/miyako/oxibonsai/blob/main/.github/workflows/publish.yml)
+   on `main` with the desired component version increment. **A `GITHUB_TOKEN`
+   push does not trigger other push workflows.** The native updater deliberately
+   has no publication dispatch and no `actions: write` permission.
+
+Configure required reviewers and `main` branch restrictions for the `native-update`
+and `component-publish` GitHub environments. Only the gated updater job receives
+`contents: write`; PR/native compilation jobs are read-only and do not receive
+deployment secrets. Branch protection must permit the authorized bot's normal
+fast-forward push; the updater never bypasses protection, force-pushes, rebases,
+or retries against a changed main. Main freshness is checked before replacement
+and commit, and a race at push is rejected by Git. Native updates and production
+Publish share a non-cancelling concurrency group.
+
+**Bootstrap requirement:** the old tracked executables have no `source.json`;
+they are preserved, not assigned fabricated build provenance. The first complete
+authorized native update must land before the new committed-resource Publish
+and component PR compilation gates can pass. The old successful CI artifacts
+also require an unbundled `vcruntime140.dll` on both Windows architectures and
+are therefore not suitable for installing under the new contract. Run the new
+static-CRT Windows builds rather than copying those artifacts into Git.
+For a staged rollout, land the reviewed workflow/scripts/docs first without a
+4D source/resource change: these paths do not trigger production Publish.
+The native updater does **not** depend on Publish, the component compile job,
+or an existing resource manifest, so it can perform the first refresh on `main`.
+The initial component PR resource check is intentionally red until that verified
+resource commit exists; it must not be interpreted as a native build failure or
+waived with a legacy-success fallback. Then validate an ordinary 4D-only change
+against the committed resources before authorizing a separate Publish dispatch.
+
+Publish has **no native build job or native artifact download**. Normal 4D-only
+changes use the committed resources, validate their checksums/runtime closure
+before the version bump, compile 4D, and verify the packaged resources again
+before signing. Both hosted and self-hosted modes use the same path; Python
+3.12+ and native inspection tools must be available on the packaging host.
+PRs compile/validate read-only and can never publish or use the self-hosted runner.
+The component version (`package.json`) is independent of upstream 0.2.3.
+
+The compiler helper is pinned, and `component-dependencies.json` pins
+checksum-verified tcp/workers/event release archives. A structured `Compile project`
+report must contain `success: true` and an empty diagnostics array; archive
+existence alone is not success. Packaging also requires a `.4DZ` (case-insensitive),
+generated Libraries and the unchanged tokenizer. Signing includes **every Mach-O
+code object, including generated Libraries**, not just the CLI. Developer ID team,
+timestamp, hardened runtime, notarization `Accepted`, DMG signing/stapling and
+assessment are fail-closed gates. Only afterward are the local version commit and
+tag pushed atomically without force and release assets uploaded.
+
+`Resources/bin/source.json` describes **pre-component-signing** hashes.
+Signing changes executable bytes; `Resources/signed-code.json` records final
+signed code hashes, and the release `SHA256SUMS` records the final ZIP/DMG bytes.
 
 Building/help checks need no model. Real inference and readiness testing require
 a compatible GGUF/tokenizer and sufficient RAM; neither a successful compilation
 nor the wrapper's start callback proves inference quality.
 
-### Validation of this update (2026-11-02)
+### Earlier source-build validation (2026-11-02)
 
 Both macOS release targets were built from the pinned source. A universal binary
 passed version/help checks on ARM64 and Intel via Rosetta, and both slices
@@ -198,6 +260,31 @@ exercised locally (tool4d and deployment credentials were not used).
 No production GGUF was downloaded. The Metal dependency `block 0.1.6` emits a
 Rust future-incompatibility warning; the pinned compiler still builds it.
 No release workflow was triggered.
+
+For the build-back-to-Git audit, actual artifacts from successful native run
+`41401312312` measured **28,355,168 bytes** (universal Mac),
+**13,504,000 bytes** (Windows x64) and **11,643,392 bytes** (Windows ARM64).
+These are measured CI outputs, not the older Git copies and not measurements of
+the new static-CRT Windows builds. They demonstrate size headroom only; the
+Windows runtime audit above prevents their installation. Each future update
+measures its own final files before committing. Local contract tests are not
+evidence that unrun Windows builds, 4D compilation or credentialed signing passed.
+
+The new local macOS builds passed version/help and system-library closure checks;
+their combined universal executable is **28,354,688 bytes**, with both architectures
+executed on Apple Silicon (Intel via Rosetta). New static-CRT Windows outputs
+remain unrun and unmeasured.
+
+The local 4D check used the **same tool4d 20.7 build 20.101905**, compiler revision
+`b73a89a9eac2636f59bcbd020ccf0aad954cab64` and invocation flags as established CI.
+With pinned dependencies, it emitted `{"success":true,"errors":[]}` and generated
+a `.4DZ`, generic compiled code, an ARM64 Library and matching tokenizer.
+However, tool4d exited **139 during shutdown on macOS 26.7**, including with the
+unchanged compiler entry point and with a no-compilation/no-dependency control
+method. This local runtime/environment failure is not specific to the new compile
+invocation; its precise native crash cause is unresolved. The command's nonzero
+exit is **not suppressed**, so this is not a successful packaging run or evidence
+of credentialed signing/notarization. Hosted macOS 15 validation is still required.
 
 ## Credits and licensing
 

@@ -6,3 +6,6 @@ _site/
 .jekyll-cache/
 .jekyll-metadata
 .sass-cache/
+Components/
+tool4d.app/
+tool4d.tar.xz

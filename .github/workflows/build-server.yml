@@ -11,6 +11,7 @@ on:
       - 'scripts/**'
       - '.github/workflows/build-server.yml'
       - '.github/workflows/publish.yml'
+      - '.github/workflows/native-update.yml'
   push:
     branches: [main]
     paths:
@@ -19,6 +20,7 @@ on:
       - 'Cargo.lock'
       - 'scripts/**'
       - '.github/workflows/build-server.yml'
+      - '.github/workflows/native-update.yml'
 
 permissions:
   contents: read
@@ -42,8 +44,11 @@ jobs:
             target: aarch64-pc-windows-msvc
             arch: arm64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13.17'
@@ -66,8 +71,11 @@ jobs:
   package:
     needs: native
     runs-on: macos-15
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13.17'
