@@ -1,4 +1,5 @@
 property model : 4D:C1709.Folder
+property _started : Boolean
 
 Class extends _models
 
@@ -10,18 +11,7 @@ Class constructor($port : Integer; $huggingfaces : cs:C1710.event.huggingfaces; 
 		This:C1470.download()
 	End if 
 	
-Function _isRouterMode() : Boolean
-	
-	return ((OB Instance of:C1731(This:C1470.options.models_preset; 4D:C1709.File))\
-		 && (This:C1470.options.models_preset.exists))\
-		 || ((OB Instance of:C1731(This:C1470.options.models_dir; 4D:C1709.Folder))\
-		 && (This:C1470.options.models_dir.exists))
-	
 Function models() : cs:C1710.event.models
-	
-	If (This:C1470._isRouterMode())
-		return cs:C1710.event.models.new([cs:C1710.event.model.new()])
-	End if 
 	
 	var $model : cs:C1710.event.model
 	$model:=cs:C1710.event.model.new(This:C1470.options.model.name; Not:C34(This:C1470.options.model.exists))
@@ -68,8 +58,28 @@ Function onDownload($oid : Text)
 	
 	Super:C1706.onDownload($oid)
 	
+Function _onNothingToDownload()
+	
+	If (OB Instance of:C1731(This:C1470.options.model; 4D:C1709.File))
+		If (This:C1470.options.model.exists)
+			This:C1470.start()
+			return 
+		End if 
+	End if 
+	var $message : Text
+	$message:="no model to load: nothing to download and options.model is not an existing file"
+	If (OB Instance of:C1731(This:C1470.options.model; 4D:C1709.File))
+		$message+=": "+This:C1470.options.model.path
+	End if 
+	LOG EVENT:C667(Into 4D debug message:K38:5; "oxibonsai: "+$message)
+	This:C1470._notifyError(cs:C1710.event.error.new(2; $message; cs:C1710.event.models.new()))
+	
 Function start()
 	
+	If (This:C1470._started)
+		return 
+	End if 
+	This:C1470._started:=True:C214
 	var $oxibonsai : cs:C1710.workers.worker
 	$oxibonsai:=cs:C1710.workers.worker.new(cs:C1710._server)
 	$oxibonsai.start(This:C1470.options.port; This:C1470.options)
