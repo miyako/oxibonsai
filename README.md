@@ -82,6 +82,14 @@ $oxibonsai:=cs.oxibonsai.new(8080; $huggingfaces; $homeFolder; $options; $event)
 or an HTTP readiness check succeeded. Check `GET /health` before sending requests;
 loading a large model can take time. Call `$oxibonsai.terminate()` to stop the worker.
 
+If there is nothing to download (no `huggingfaces`, or none of them resolves to a
+file), the server is started with `options.model` when it is an existing local
+`4D.File`. Otherwise `event.onError` receives an error with code `2` and the server
+is not started. The server is launched at most once per wrapper attempt. `event`
+may be `Null` (no callbacks are delivered) when nothing needs to be downloaded;
+an actual download still requires an `event`, because the downloader in the
+separate `event` component does not accept `Null`.
+
 ### Options and API
 
 Options use underscores; the wrapper converts them to CLI hyphens. The model
